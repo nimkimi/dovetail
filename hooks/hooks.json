@@ -1,0 +1,28 @@
+{
+  "description": "dovetail — advisory author-time cue (PreToolUse Edit|Write) + finish nudge (Stop). Never blocks; exits 0 always. Invoked via python3 so it does not depend on the exec bit surviving install/sync.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/bin/pretool.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/bin/stop.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
