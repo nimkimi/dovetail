@@ -11,6 +11,7 @@ import os
 from dovetail.change import parse_change
 from dovetail.cues import build_author_cue, build_finish_cue
 from dovetail.detect import detect_triggers, is_structural, is_trivial, is_watched_file
+from dovetail.state import mark_full_shown, should_compress
 
 
 def _ext(file_path: str) -> str:
@@ -38,10 +39,28 @@ def author_decision(payload: object) -> "tuple[str | None, dict]":
     # Cosmetic edit with nothing high-signal → silent (proportional-first).
     if is_trivial(change.added_text, change.file_path) and not triggers:
         return None, {"decision": "silent", "reason": "trivial", "ext": ext}
-    return build_author_cue(triggers), {
+    # Novelty-weighted delivery: the full always-on block teaches once per
+    # context; repeats within the refresh window get the one-line stand-in.
+    # Trigger lines always appear. Context key = transcript_path + agent_id:
+    # measured harness reality (2026-07-11 payload capture) is that subagents
+    # receive the PARENT's transcript_path but carry their own agent_id — key
+    # on the pair or every fresh implementer is starved of the full cue.
+    # Payloads without a transcript_path can't be keyed → always full, no state.
+    transcript_path = payload.get("transcript_path")
+    context_key = (
+        f"{transcript_path}|{payload.get('agent_id') or ''}"
+        if transcript_path
+        else None
+    )
+    compressed = bool(context_key) and should_compress(context_key)
+    if context_key and not compressed:
+        mark_full_shown(context_key)
+    return build_author_cue(triggers, compressed=compressed), {
         "decision": "cue",
         "triggers": triggers,
         "ext": ext,
+        "delivery": "compressed" if compressed else "full",
+        "new_file": change.is_new_file,
     }
 
 
@@ -143,10 +162,14 @@ def finish_decision(payload: object) -> "tuple[str | None, dict]":
         records = _load_jsonl(transcript_path)
     wrote_code = False
     structural = False
+    touched: "list[str]" = []  # in-lane basenames, deduped, turn order
     for name, tool_input in _turn_edits(records):
         change = parse_change(name, tool_input)
         if change is None or not is_watched_file(change.file_path):
             continue
+        basename = change.file_path.replace("\\", "/").rsplit("/", 1)[-1]
+        if basename not in touched:
+            touched.append(basename)
         triggers = detect_triggers(change.added_text, change.file_path)
         if triggers or not is_trivial(change.added_text, change.file_path):
             wrote_code = True
@@ -154,7 +177,11 @@ def finish_decision(payload: object) -> "tuple[str | None, dict]":
             structural = True
     if not wrote_code:
         return None, {"decision": "silent", "reason": "no-code"}
-    return build_finish_cue(structural), {"decision": "cue", "structural": structural}
+    return build_finish_cue(structural, tuple(touched)), {
+        "decision": "cue",
+        "structural": structural,
+        "files": len(touched),
+    }
 
 
 def finish_context(payload: object) -> "str | None":

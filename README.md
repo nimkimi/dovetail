@@ -12,16 +12,29 @@ Two **advisory** hooks (Python 3, stdlib only). They **never block, never edit,
 never touch the network, and exit 0 on every path.**
 
 - **PreToolUse (`Edit|Write`) — author-time cue.** Before a code change lands,
-  injects a compact cue: a lean always-on core plus any *triggered* cue whose
+  injects a compact cue: the always-on core plus any *triggered* cue whose
   pattern is in the pending diff (dependency-vetting, blast-radius safety,
   breaking-change, secrets/trust-boundary, runtime-cost, survey-before-reuse).
   Silent on trivial / cosmetic / out-of-lane (docs, data, lockfiles) changes —
   proportional-first, to avoid banner-blindness.
+- **Novelty-weighted delivery.** The full always-on block is teaching material:
+  each context gets it ONCE (re-shown after 45 min — compaction insurance);
+  repeats collapse it to a one-line stand-in while trigger lines (edit-specific
+  signal) always appear. Context = `transcript_path + agent_id`: measured
+  harness reality is that subagent hooks receive the PARENT's transcript_path
+  but carry their own `agent_id`, so every fresh implementer subagent still
+  gets the full cue once. (Motive: 71% measured fire rate on day one — the
+  identical block repeated is wallpaper.) State: tiny per-context files under
+  `~/.dovetail/state`; any state failure degrades to the full cue.
 - **Stop — finish nudge.** When the turn actually wrote non-trivial code, injects
-  one compact finish check (complete-the-change sweep, re-read-as-a-stranger,
+  one compact finish check (complete-the-change sweep — **naming the turn's
+  touched in-lane files** as the concrete sweep list, re-read-as-a-stranger,
   tests-assert-edges) plus a one-line **structural-decision declaration** when a
   new module / boundary / data-shape appeared. Honours `stop_hook_active`;
   composes with the existing `test-claim-guard` Stop hook.
+- **Reaches subagents.** PreToolUse cues fire inside subagent contexts too
+  (verified live) — in orchestrated builds the implementers who write most of
+  the code are cued, not just the controller.
 
 ## Layout
 
@@ -34,9 +47,10 @@ dovetail/
   change.py   parse a PreToolUse tool_input → (file_path, added_text, is_new_file)
   cues.py     the cue payload (compact; < 2KB per injection)
   hook.py     orchestration (author/finish decisions + real-transcript parsing)
+  state.py    per-context delivery state (full-once, compressed repeats)
   log.py      local fire-rate telemetry → ~/.dovetail/fire-log.jsonl
   report.py   summarize(records): per-surface fire rates + trigger counts
-tests/        94 tests — run: .venv/bin/python -m pytest -q
+tests/        104 tests — run: .venv/bin/python -m pytest -q
               (test dep lives in .venv; runtime stays stdlib-only.
                Setup once: python3 -m venv .venv && .venv/bin/pip install pytest)
 ```
