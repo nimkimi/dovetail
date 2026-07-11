@@ -13,7 +13,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from dovetail.hook import finish_context
+from dovetail.hook import finish_decision
+from dovetail.log import log_event
 
 
 def main():
@@ -22,7 +23,8 @@ def main():
     except Exception:
         return  # malformed stdin → stay silent
     try:
-        context = finish_context(payload)
+        context, meta = finish_decision(payload)
+        log_event("stop", meta)
     except Exception:
         return  # an internal error must never break the host turn-end
     if context:

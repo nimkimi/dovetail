@@ -13,24 +13,41 @@ from dovetail.cues import build_author_cue, build_finish_cue
 from dovetail.detect import detect_triggers, is_structural, is_trivial, is_watched_file
 
 
-def author_context(payload: object) -> "str | None":
-    """PreToolUse → the advisory cue to inject, or None to stay silent."""
+def _ext(file_path: str) -> str:
+    basename = file_path.replace("\\", "/").rsplit("/", 1)[-1]
+    return basename.rsplit(".", 1)[-1].lower() if "." in basename else ""
+
+
+def author_decision(payload: object) -> "tuple[str | None, dict]":
+    """PreToolUse → (advisory cue or None, telemetry meta). Meta carries the
+    decision and its inputs (triggers, extension, silent reason) — never file
+    contents or paths."""
     if not isinstance(payload, dict):
-        return None
+        return None, {"decision": "silent", "reason": "not-a-change"}
     change = parse_change(payload.get("tool_name", ""), payload.get("tool_input"))
     if change is None:
-        return None
+        return None, {"decision": "silent", "reason": "not-a-change"}
     # Out of lane (docs / data / lockfiles): never cue, even if a trigger pattern
     # happens to appear in prose.
     if not is_watched_file(change.file_path):
-        return None
+        return None, {"decision": "silent", "reason": "out-of-lane"}
     triggers = detect_triggers(change.added_text, change.file_path)
     if change.is_new_file and "reuse" not in triggers:
         triggers.append("reuse")
+    ext = _ext(change.file_path)
     # Cosmetic edit with nothing high-signal → silent (proportional-first).
     if is_trivial(change.added_text, change.file_path) and not triggers:
-        return None
-    return build_author_cue(triggers)
+        return None, {"decision": "silent", "reason": "trivial", "ext": ext}
+    return build_author_cue(triggers), {
+        "decision": "cue",
+        "triggers": triggers,
+        "ext": ext,
+    }
+
+
+def author_context(payload: object) -> "str | None":
+    """PreToolUse → the advisory cue to inject, or None to stay silent."""
+    return author_decision(payload)[0]
 
 
 # Transcripts grow to tens of MB in marathon sessions and the Stop hook runs on
@@ -110,15 +127,15 @@ def _turn_edits(records: list) -> "list[tuple[str, dict]]":
     return edits
 
 
-def finish_context(payload: object) -> "str | None":
-    """Stop → the finish nudge to inject, or None to stay silent."""
+def finish_decision(payload: object) -> "tuple[str | None, dict]":
+    """Stop → (finish nudge or None, telemetry meta)."""
     if not isinstance(payload, dict):
-        return None
+        return None, {"decision": "silent", "reason": "bad-payload"}
     if payload.get("stop_hook_active"):  # loop guard — already re-prompted once
-        return None
+        return None, {"decision": "silent", "reason": "loop-guard"}
     transcript_path = payload.get("transcript_path")
     if not transcript_path or not os.path.exists(transcript_path):
-        return None
+        return None, {"decision": "silent", "reason": "no-transcript"}
     records = _load_jsonl(transcript_path, tail_bytes=_TAIL_BYTES)
     if not any(_is_human_message(r) for r in records):
         # The turn boundary fell outside the tail window — pay the full read
@@ -136,5 +153,10 @@ def finish_context(payload: object) -> "str | None":
         if is_structural(change.added_text):
             structural = True
     if not wrote_code:
-        return None
-    return build_finish_cue(structural)
+        return None, {"decision": "silent", "reason": "no-code"}
+    return build_finish_cue(structural), {"decision": "cue", "structural": structural}
+
+
+def finish_context(payload: object) -> "str | None":
+    """Stop → the finish nudge to inject, or None to stay silent."""
+    return finish_decision(payload)[0]
