@@ -33,9 +33,30 @@ dovetail/
   detect.py   triggers, is_trivial, is_watched_file, is_structural
   change.py   parse a PreToolUse tool_input → (file_path, added_text, is_new_file)
   cues.py     the cue payload (compact; < 2KB per injection)
-  hook.py     orchestration (author_context / finish_context)
-tests/        83 tests — run: python3 -m pytest -q
+  hook.py     orchestration (author/finish decisions + real-transcript parsing)
+  log.py      local fire-rate telemetry → ~/.dovetail/fire-log.jsonl
+  report.py   summarize(records): per-surface fire rates + trigger counts
+tests/        94 tests — run: .venv/bin/python -m pytest -q
+              (test dep lives in .venv; runtime stays stdlib-only.
+               Setup once: python3 -m venv .venv && .venv/bin/pip install pytest)
 ```
+
+## Telemetry
+
+Every hook evaluation appends one metadata-only JSONL record (decision,
+triggers, extension — never paths or content) to `~/.dovetail/fire-log.jsonl`
+(override dir via `DOVETAIL_LOG_DIR`). This is the evidence base for tuning
+cue weight against banner-blindness: measure real fire rates before changing
+cue text. A 2026-07-11 control-vs-cue eval (20 reps) found ceiling effects on
+focused scenarios — no basis to trim OR to prove lines load-bearing — so the
+cue text stays until real-session fire rates say otherwise. Summarize with:
+`python3 -c "import json,sys; sys.path.insert(0,'.'); from dovetail.report import summarize; print(json.dumps(summarize([json.loads(l) for l in open(__import__('os').path.expanduser('~/.dovetail/fire-log.jsonl'))]), indent=2))"`
+
+## Gotcha: double-fire
+
+The hooks are wired directly in `~/.claude/settings.json`. If dovetail is ever
+ALSO installed as a formal plugin, `hooks/hooks.json` will fire the same cues a
+second time — remove one wiring or the other, never keep both.
 
 ## Install (local)
 
