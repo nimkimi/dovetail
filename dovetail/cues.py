@@ -26,6 +26,15 @@ ALWAYS_ON = (
     "WHY, not the what; expand an unreadable one-liner."
 )
 
+# One-line stand-in for ALWAYS_ON on repeat cues in the same context — the full
+# block is teaching material shown once (then time-refreshed); repeating it
+# verbatim on 70%+ of edits is wallpaper (measured day-one fire rate).
+ALWAYS_ON_COMPACT = (
+    "Always-on core applies (shown in full earlier this session): proportional-first · "
+    "stay in scope · match the local idiom · YAGNI + Chesterton's Fence (never shorten a "
+    "guard) · name for intent, comment the WHY."
+)
+
 # Loud / unique first; the quality cluster is already covered above.
 TRIGGER_ORDER = [
     "blast-radius",
@@ -81,15 +90,30 @@ FINISH_STRUCTURAL = (
 )
 
 
-def build_author_cue(triggers: "list[str]") -> str:
-    """Preamble + always-on core + each present trigger's cue (priority order,
-    deduped). Iterating the fixed order both orders and de-duplicates."""
-    parts = [PREAMBLE, ALWAYS_ON]
+def build_author_cue(triggers: "list[str]", compressed: bool = False) -> str:
+    """Preamble + always-on core (full or one-line on repeat showings) + each
+    present trigger's cue. Trigger lines are edit-specific signal and appear on
+    every cue regardless of compression."""
+    parts = [PREAMBLE, ALWAYS_ON_COMPACT if compressed else ALWAYS_ON]
     parts.extend(TRIGGER_CUES[key] for key in TRIGGER_ORDER if key in triggers)
     return "\n".join(parts)
 
 
-def build_finish_cue(structural: bool) -> str:
-    """The finish nudge, plus the one-line structural declaration when a new
-    module / boundary / data-shape was introduced this turn."""
-    return FINISH + ("\n" + FINISH_STRUCTURAL if structural else "")
+_FINISH_FILES_CAP = 8
+
+
+def build_finish_cue(structural: bool, files: "tuple[str, ...]" = ()) -> str:
+    """The finish nudge — naming the turn's touched in-lane files so the sweep
+    is a concrete list, not a generic instruction — plus the one-line
+    structural declaration when a new module / boundary / data-shape appeared."""
+    cue = FINISH
+    if files:
+        shown = list(files)[:_FINISH_FILES_CAP]
+        extra = len(files) - len(shown)
+        listing = ", ".join(shown) + (f" (+{extra} more)" if extra > 0 else "")
+        cue += (
+            "\n- Touched this turn: "
+            + listing
+            + " — sweep THEIR callers, tests, docs, and types."
+        )
+    return cue + ("\n" + FINISH_STRUCTURAL if structural else "")
