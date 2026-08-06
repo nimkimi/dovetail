@@ -1,5 +1,6 @@
 import json
 
+import dovetail.hook as hook
 from dovetail.hook import author_context, finish_context
 
 
@@ -117,3 +118,60 @@ def test_finish_ignores_edits_before_last_user_record(tmp_path):
         {"type": "assistant", "message": {"content": [{"type": "text", "text": "Sure."}]}},
     ])
     assert finish_context({"transcript_path": tp, "stop_hook_active": False}) is None
+
+
+# ---- transcript tail cap (marathon sessions can reach tens of MB, and Stop
+# runs on EVERY stop — bound the read, and never fall back to a full read) ----
+
+def test_finish_tail_bytes_constant_is_1mb():
+    assert hook._TAIL_BYTES == 1 * 1024 * 1024
+
+
+def test_finish_bails_silently_when_boundary_outside_tail_and_never_reads_full_file(
+    tmp_path, monkeypatch
+):
+    # A turn boundary that has scrolled past the tail window is a giant turn —
+    # one advisory nudge has negligible marginal value there, so silence is
+    # correct. The hook must bail without ever paying for an unbounded read.
+    tp = _write_transcript(tmp_path, [
+        {"type": "user", "message": {"content": "add it"}},
+        _assistant_tool_use("Write", {
+            "file_path": "/repo/app/x.py",
+            "content": "def f(xs):\n    return sum(i for i in xs)\n",
+        }),
+    ] + [{"type": "assistant", "message": {"content": [{"type": "text", "text": "padding"}]}}] * 20)
+    monkeypatch.setattr(hook, "_TAIL_BYTES", 40)  # smaller than the file; boundary falls outside it
+
+    calls = []
+    real_load = hook._load_jsonl
+
+    def spy(path, tail_bytes=None):
+        calls.append(tail_bytes)
+        if tail_bytes is None:
+            raise AssertionError("finish_context must never read the full transcript")
+        return real_load(path, tail_bytes=tail_bytes)
+
+    monkeypatch.setattr(hook, "_load_jsonl", spy)
+
+    assert finish_context({"transcript_path": tp, "stop_hook_active": False}) is None
+    assert calls == [40]
+
+
+def test_finish_tail_read_suffices_when_boundary_is_recent(tmp_path, monkeypatch):
+    # Boundary and edit both inside the tail: the bounded read alone answers,
+    # and a partial first line from the seek must not break parsing.
+    records = [
+        {"type": "user", "message": {"content": "old turn " + "x" * 200}},
+        {"type": "assistant", "message": {"content": [{"type": "text", "text": "old answer"}]}},
+        {"type": "user", "message": {"content": "new turn: fix it"}},
+        _assistant_tool_use("Edit", {
+            "file_path": "/repo/app/billing.py",
+            "old_string": "pass",
+            "new_string": "def charge(user):\n    return sum(i.price for i in user.cart)\n",
+        }),
+    ]
+    tp = _write_transcript(tmp_path, records)
+    tail = len(json.dumps(records[-2])) + len(json.dumps(records[-1])) + 40
+    monkeypatch.setattr(hook, "_TAIL_BYTES", tail)
+    ctx = finish_context({"transcript_path": tp, "stop_hook_active": False})
+    assert ctx is not None and "sweep" in ctx and "stranger" in ctx

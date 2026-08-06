@@ -33,10 +33,26 @@ def author_context(payload: object) -> "str | None":
     return build_author_cue(triggers)
 
 
-def _load_jsonl(path: str) -> list:
+# Transcripts grow to tens of MB in marathon sessions and the Stop hook runs on
+# EVERY stop — read only this much of the file's tail. When the turn boundary
+# (last user record) isn't inside it, finish_context bails silently rather
+# than falling back to an unbounded read: a turn this large already got one
+# advisory nudge's worth of value long ago.
+_TAIL_BYTES = 1 * 1024 * 1024
+
+
+def _load_jsonl(path: str, tail_bytes: "int | None" = None) -> list:
     records = []
     try:
         with open(path, encoding="utf-8") as f:
+            if tail_bytes is not None:
+                f.seek(0, os.SEEK_END)
+                size = f.tell()
+                if size > tail_bytes:
+                    f.seek(size - tail_bytes)
+                    f.readline()  # drop the partial line the seek landed in
+                else:
+                    f.seek(0)
             for line in f:
                 line = line.strip()
                 if not line:
@@ -82,9 +98,14 @@ def finish_context(payload: object) -> "str | None":
     transcript_path = payload.get("transcript_path")
     if not transcript_path or not os.path.exists(transcript_path):
         return None
+    records = _load_jsonl(transcript_path, tail_bytes=_TAIL_BYTES)
+    if not any(r.get("type") == "user" for r in records):
+        # The turn boundary fell outside the tail window — bail rather than
+        # pay for an unbounded full-file read.
+        return None
     wrote_code = False
     structural = False
-    for name, tool_input in _turn_edits(_load_jsonl(transcript_path)):
+    for name, tool_input in _turn_edits(records):
         change = parse_change(name, tool_input)
         if change is None or not is_watched_file(change.file_path):
             continue
