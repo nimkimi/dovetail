@@ -70,10 +70,12 @@ def author_context(payload: object) -> "str | None":
 
 
 # Transcripts grow to tens of MB in marathon sessions and the Stop hook runs on
-# EVERY stop — read only this much of the file's tail. The turn boundary (last
-# human message) is almost always inside it; when it is not, the caller falls
-# back to a full read so a long tool-heavy turn never loses its boundary.
-_TAIL_BYTES = 16 * 1024 * 1024
+# EVERY stop — read only this much of the file's tail. When the turn boundary
+# (last human message) falls outside it, that turn is a giant one that already
+# got its advisory value long ago: the caller bails silently rather than paying
+# an unbounded full read, and telemeters the bail so the cap size is tunable on
+# measured fire rates (2026-08-06 setup audit).
+_TAIL_BYTES = 1 * 1024 * 1024
 
 
 def _load_jsonl(path: str, tail_bytes: "int | None" = None) -> list:
@@ -157,9 +159,11 @@ def finish_decision(payload: object) -> "tuple[str | None, dict]":
         return None, {"decision": "silent", "reason": "no-transcript"}
     records = _load_jsonl(transcript_path, tail_bytes=_TAIL_BYTES)
     if not any(_is_human_message(r) for r in records):
-        # The turn boundary fell outside the tail window — pay the full read
-        # rather than silently mis-scoping the turn.
-        records = _load_jsonl(transcript_path)
+        # Turn boundary outside the tail window: bail silently — never pay an
+        # unbounded read on every Stop for a turn that already got its advisory
+        # value long ago. The reason is telemetered; a high rate here is the
+        # signal to raise _TAIL_BYTES, on evidence.
+        return None, {"decision": "silent", "reason": "boundary-outside-tail"}
     wrote_code = False
     structural = False
     touched: "list[str]" = []  # in-lane basenames, deduped, turn order
