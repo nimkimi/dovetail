@@ -2,6 +2,7 @@
 the advisory JSON contract + exit 0 on every path."""
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -9,12 +10,13 @@ from pathlib import Path
 BIN = Path(__file__).resolve().parent.parent / "bin"
 
 
-def run_hook(script, stdin_text):
+def run_hook(script, stdin_text, env=None):
     return subprocess.run(
         [sys.executable, str(BIN / script)],
         input=stdin_text,
         capture_output=True,
         text=True,
+        env={**os.environ, **env} if env else None,
     )
 
 
@@ -63,6 +65,28 @@ def test_pretool_exit0_and_silent_on_malformed_json():
     proc = run_hook("pretool.py", "this is not json{")
     assert proc.returncode == 0
     assert proc.stdout.strip() == ""
+
+
+# ---- telemetry agent_id (2026-08-09: the fire log could never split subagent
+# from main-session records — 0/8953 in a month of data) ----
+
+def test_pretool_logs_agent_id_when_payload_carries_one(tmp_path):
+    run_hook("pretool.py", json.dumps({
+        "tool_name": "Write",
+        "tool_input": {"file_path": "/repo/app/calc.py", "content": "for i in items:\n    work(i)\n"},
+        "agent_id": "ag123",
+    }), env={"DOVETAIL_LOG_DIR": str(tmp_path)})
+    record = json.loads((tmp_path / "fire-log.jsonl").read_text().splitlines()[-1])
+    assert record["agent_id"] == "ag123"
+
+
+def test_stop_logs_empty_agent_id_for_main_session(tmp_path):
+    run_hook("stop.py", json.dumps({
+        "transcript_path": "/does/not/exist.jsonl",
+        "stop_hook_active": False,
+    }), env={"DOVETAIL_LOG_DIR": str(tmp_path)})
+    record = json.loads((tmp_path / "fire-log.jsonl").read_text().splitlines()[-1])
+    assert record["agent_id"] == ""
 
 
 # ---- Stop ----

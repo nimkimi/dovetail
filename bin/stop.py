@@ -24,6 +24,8 @@ def main():
         return  # malformed stdin → stay silent
     try:
         context, meta = finish_decision(payload)
+        # Same boundary enrichment as pretool.py: "" = main session.
+        meta["agent_id"] = (payload.get("agent_id") or "") if isinstance(payload, dict) else ""
         log_event("stop", meta)
     except Exception:
         return  # an internal error must never break the host turn-end

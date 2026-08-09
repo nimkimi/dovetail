@@ -24,6 +24,10 @@ def main():
         return  # malformed stdin → stay silent
     try:
         context, meta = author_decision(payload)
+        # Enriched at the logging boundary, not in the pure decision: agent_id
+        # ("" = main session) makes the subagent/main split analyzable — a
+        # month of data had no field that could tell them apart (2026-08-09).
+        meta["agent_id"] = (payload.get("agent_id") or "") if isinstance(payload, dict) else ""
         log_event("author", meta)
     except Exception:
         return  # an internal error must never break the host's tool call

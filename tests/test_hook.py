@@ -51,6 +51,34 @@ def test_author_cue_includes_reuse_on_new_file(tmp_path):
     assert "survey" in ctx  # reuse cue
 
 
+# ---- reuse narrowing (2026-08-09 telemetry round) ----
+
+def test_author_reuse_dropped_on_existing_file_import():
+    # Edit (existing file by contract) adding an import: reuse must NOT fire —
+    # a month of fire data showed existing-file reuse-only cues were the least
+    # actionable 11% of all author cues. Other triggers still cue.
+    ctx = author_context({
+        "tool_name": "Edit",
+        "tool_input": {
+            "file_path": "/repo/app/svc.py",
+            "old_string": "import os",
+            "new_string": "import os\nimport requests\n\nresp = requests.get(url)\nparse(resp)\n",
+        },
+    })
+    assert ctx is not None          # failure-path still cues
+    assert "survey" not in ctx      # but the reuse line is gone
+
+
+def test_author_reuse_kept_on_new_file_with_imports(tmp_path):
+    target = tmp_path / "fresh_module.py"
+    ctx = author_context({
+        "tool_name": "Write",
+        "tool_input": {"file_path": str(target), "content": "import os\n\ndef helper():\n    return os.getcwd()\n"},
+    })
+    assert ctx is not None
+    assert "survey" in ctx
+
+
 # ---- finish_context (Stop) ----
 
 def _write_transcript(tmp_path, records):
