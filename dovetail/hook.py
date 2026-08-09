@@ -33,8 +33,15 @@ def author_decision(payload: object) -> "tuple[str | None, dict]":
     if not is_watched_file(change.file_path):
         return None, {"decision": "silent", "reason": "out-of-lane"}
     triggers = detect_triggers(change.added_text, change.file_path)
-    if change.is_new_file and "reuse" not in triggers:
-        triggers.append("reuse")
+    # Reuse is narrowed to NEW files (2026-08-09 telemetry round, Nima-gated):
+    # duplication is born where files are born. A month of fire data put
+    # existing-file reuse-only cues at 11% of ALL author cues — the least
+    # actionable slice, and the biggest banner-blindness lever available.
+    if change.is_new_file:
+        if "reuse" not in triggers:
+            triggers.append("reuse")
+    elif "reuse" in triggers:
+        triggers.remove("reuse")
     ext = _ext(change.file_path)
     # Cosmetic edit with nothing high-signal → silent (proportional-first).
     if is_trivial(change.added_text, change.file_path) and not triggers:
