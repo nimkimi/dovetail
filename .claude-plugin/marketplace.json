@@ -1,0 +1,23 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "dovetail",
+  "description": "dovetail — automatic, preventive code-quality cues for Claude Code",
+  "owner": {
+    "name": "Nima Hakimi",
+    "email": "hakimi.nima1@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "dovetail",
+      "version": "0.4.0",
+      "description": "Advisory author-time cue (PreToolUse Edit|Write) and finish nudge (Stop) that re-surface the code-quality concerns no after-the-fact tool covers. Proportional, stack-agnostic, never blocking: no auto-edits, no network, exit 0 on every path.",
+      "author": {
+        "name": "Nima Hakimi"
+      },
+      "category": "productivity",
+      "homepage": "https://github.com/nimkimi/dovetail",
+      "repository": "https://github.com/nimkimi/dovetail",
+      "source": "./"
+    }
+  ]
+}

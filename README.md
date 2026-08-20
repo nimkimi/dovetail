@@ -1,6 +1,6 @@
 # dovetail
 
-Automatic, preventive **code-quality cues** for Claude Code — a personal plugin.
+Automatic, preventive **code-quality cues** for Claude Code.
 
 Passive CLAUDE.md rules decay: loaded at session start, they get buried as context
 grows, so by the time Claude is deep in code they no longer bind. Every existing
@@ -50,7 +50,9 @@ dovetail/
   state.py    per-context delivery state (full-once, compressed repeats)
   log.py      local fire-rate telemetry → ~/.dovetail/fire-log.jsonl
   report.py   summarize(records): per-surface fire rates + trigger counts
-tests/        104 tests — run: .venv/bin/python -m pytest -q
+  signal.py   weekly tuning signals computed from the fire log (pure)
+bin/weekly_signal.py         prints tuning signals; point any scheduler at it
+tests/        115 tests — run: .venv/bin/python -m pytest -q
               (test dep lives in .venv; runtime stays stdlib-only.
                Setup once: python3 -m venv .venv && .venv/bin/pip install pytest)
 ```
@@ -66,27 +68,31 @@ focused scenarios — no basis to trim OR to prove lines load-bearing — so the
 cue text stays until real-session fire rates say otherwise. Summarize with:
 `python3 -c "import json,sys; sys.path.insert(0,'.'); from dovetail.report import summarize; print(json.dumps(summarize([json.loads(l) for l in open(__import__('os').path.expanduser('~/.dovetail/fire-log.jsonl'))]), indent=2))"`
 
-## Gotcha: double-fire
+## Install
 
-The hooks are wired directly in `~/.claude/settings.json`. If dovetail is ever
-ALSO installed as a formal plugin, `hooks/hooks.json` will fire the same cues a
-second time — remove one wiring or the other, never keep both.
+From the repo's own marketplace, inside Claude Code:
 
-## Install (local)
+```
+/plugin marketplace add nimkimi/dovetail
+/plugin install dovetail@dovetail
+```
 
-Load the directory as a local plugin in Claude Code, **or** wire the two commands
-straight into `~/.claude/settings.json` `hooks` (PreToolUse matcher `Edit|Write`,
-Stop unmatched) using absolute paths to `bin/pretool.py` / `bin/stop.py`. Restart
-the session, then make a real non-trivial edit and confirm the cue appears (and a
-trivial one stays silent).
+If the install summary asks for it, run `/reload-plugins`; hooks load on the
+next session start in any case. Then make a real, non-trivial code edit and
+confirm the cue appears (and that a trivial one stays silent). Update later
+with `/plugin marketplace update dovetail`.
 
-## Sync
+Manual alternative: clone the repo and wire the two commands straight into
+`~/.claude/settings.json` `hooks` — PreToolUse matcher `Edit|Write` running
+`python3 "<clone>/bin/pretool.py"`, and an unmatched Stop hook running
+`python3 "<clone>/bin/stop.py"`. (`python3` invocation is deliberate: the
+hooks don't depend on the exec bit surviving a sync.)
 
-dovetail is personal env-tooling — it should ride the `~/.claude` sync
-(claude-everywhere), not a published repo. Invoked via `python3 "...script"`
-(not the exec bit) so it survives sync regardless of file-mode propagation.
+**Never keep both wirings.** Installed as a plugin AND wired in
+`settings.json`, the same cues fire twice — pick one.
 
-## Design of record
+## Status
 
-`~/projects/private/project-ideas/projects/dovetail.md` (spec) +
-`dovetail-adr-stack.md` (ADR + doc-verified hook contracts).
+dovetail is personal tooling: it runs in all of my own Claude Code sessions
+and its tuning follows my own fire-log telemetry. The repo is public to be
+read and borrowed. MIT licensed — see [LICENSE](LICENSE).
