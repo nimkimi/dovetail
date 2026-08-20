@@ -1,6 +1,6 @@
 {
   "name": "dovetail",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Automatic, preventive code-quality cues for Claude Code. An advisory PreToolUse author-time cue and a Stop finish-nudge that re-surface the concerns no after-the-fact tool covers (dependency-vetting, blast-radius safety, breaking-change, secrets/trust-boundary, runtime-cost, survey-before-reuse) \u2014 kept proportional, stack-agnostic, and never-blocking.",
   "author": {
     "name": "Nima Hakimi",
