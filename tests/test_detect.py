@@ -215,3 +215,18 @@ def test_create_table_is_structural():
 
 def test_plain_function_is_not_structural():
     assert not is_structural("def add(a, b):\n    return a + b\n")
+
+
+def test_detects_hollow_python_test_as_hollow_test_trigger():
+    added = "def test_charges_user():\n    charge(user)\n"
+    assert "hollow-test" in detect_triggers(added, "tests/test_billing.py")
+
+
+def test_real_python_test_does_not_trigger_hollow_test():
+    added = "def test_charges_user():\n    assert charge(user) == 42\n"
+    assert "hollow-test" not in detect_triggers(added, "tests/test_billing.py")
+
+
+def test_hollow_shape_in_non_test_file_does_not_trigger_hollow_test():
+    added = "def test_charges_user():\n    charge(user)\n"
+    assert "hollow-test" not in detect_triggers(added, "app/calc.py")

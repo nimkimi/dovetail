@@ -67,6 +67,30 @@ def test_pretool_exit0_and_silent_on_malformed_json():
     assert proc.stdout.strip() == ""
 
 
+def test_pretool_emits_hollow_test_on_assertion_free_python_test():
+    proc = run_hook("pretool.py", json.dumps({
+        "tool_name": "Write",
+        "tool_input": {
+            "file_path": "/repo/tests/test_billing.py",
+            "content": "def test_charges_user():\n    charge(user)\n",
+        },
+    }))
+    assert proc.returncode == 0
+    assert "production change" in context_of(proc.stdout)
+
+
+def test_pretool_silent_on_real_python_test():
+    proc = run_hook("pretool.py", json.dumps({
+        "tool_name": "Write",
+        "tool_input": {
+            "file_path": "/repo/tests/test_billing.py",
+            "content": "def test_charges_user():\n    assert charge(user) == 42\n",
+        },
+    }))
+    assert proc.returncode == 0
+    assert "production change" not in (context_of(proc.stdout) or "")
+
+
 # ---- telemetry agent_id (2026-08-09: the fire log could never split subagent
 # from main-session records — 0/8953 in a month of data) ----
 

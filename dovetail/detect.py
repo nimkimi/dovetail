@@ -7,6 +7,8 @@ dovetail cue triggers fire. Each trigger maps to one cue key the hook will surfa
 
 import re
 
+from dovetail.hollow_test import has_hollow_test
+
 # Actual loop syntax (not the bare word "for"/"while", which appears in prose,
 # strings, and identifiers). Covers C/JS `for(`/`while(`, python/JS for-in/of,
 # and python `while …:`.
@@ -177,4 +179,8 @@ def detect_triggers(added_text: str, file_path: str) -> list[str]:
         triggers.append("blast-radius")
     if _FAILURE_PATH.search(added_text):
         triggers.append("failure-path")
+    # Test-authoring-time only: gated on file path inside has_hollow_test, so
+    # this is a no-op cost on every non-test change.
+    if has_hollow_test(added_text, file_path):
+        triggers.append("hollow-test")
     return triggers

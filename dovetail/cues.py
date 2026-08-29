@@ -2,7 +2,8 @@
 
 Primary weight on dovetail's UNIQUE concerns (dependency-vetting, blast-radius
 safety, breaking-change, secrets/trust-boundary, runtime-cost, survey-before-
-reuse); only a LIGHT touch on the quality cluster `/simplify` owns. Every line
+reuse, hollow-test detection); only a LIGHT touch on the quality cluster
+`/simplify` owns. Every line
 is concrete and verb-first — no bare virtues. Kept compact: the assembled
 author cue stays under the <2KB target (hard hook cap is 10000 chars).
 """
@@ -40,6 +41,7 @@ TRIGGER_ORDER = [
     "blast-radius",
     "breaking-change",
     "failure-path",
+    "hollow-test",
     "dep-vet",
     "runtime-cost",
     "reuse",
@@ -58,6 +60,10 @@ TRIGGER_CUES = {
         "- Fallible call (I/O / network / parse / external) — handle vs propagate, never an "
         "empty catch; never echo secrets/tokens into logs or errors; validate untrusted input "
         "at the boundary; release resources on the error path too."
+    ),
+    "hollow-test": (
+        "- Hollow test (no real assertion / mock-only / tautology) — name the production "
+        "change that would make this test fail; assert on real behavior, not the mock."
     ),
     "dep-vet": (
         "- New dependency — flag it. Offline signals: already a transitive dep? name plausibly "

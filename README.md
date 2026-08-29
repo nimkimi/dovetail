@@ -14,9 +14,17 @@ never touch the network, and exit 0 on every path.**
 - **PreToolUse (`Edit|Write`) — author-time cue.** Before a code change lands,
   injects a compact cue: the always-on core plus any *triggered* cue whose
   pattern is in the pending diff (dependency-vetting, blast-radius safety,
-  breaking-change, secrets/trust-boundary, runtime-cost, survey-before-reuse).
-  Silent on trivial / cosmetic / out-of-lane (docs, data, lockfiles) changes —
-  proportional-first, to avoid banner-blindness.
+  breaking-change, secrets/trust-boundary, runtime-cost, survey-before-reuse,
+  hollow-test detection). Silent on trivial / cosmetic / out-of-lane (docs,
+  data, lockfiles) changes — proportional-first, to avoid banner-blindness.
+- **Hollow-test detection.** On a test-path Edit/Write (`tests?/`, `__tests__/`,
+  `*.test.*`, `*_test.*`, `*.spec.*`, `test_*.py`), body-scoped to each
+  `def test_`/`it(`/`test(` in the pending diff: no real assertion, a
+  mock-only body (`.assert_called*` / `toHaveBeenCalled*` with nothing else),
+  or a literal tautology (`assert True`, `assertTrue(True)`,
+  `expect(true).toBe(true)`, byte-identical `assert X == X`) all cue. Helper
+  files (conftest.py, fixtures) stay silent with no denylist — they define no
+  test body to scan.
 - **Novelty-weighted delivery.** The full always-on block is teaching material:
   each context gets it ONCE (re-shown after 45 min — compaction insurance);
   repeats collapse it to a one-line stand-in while trigger lines (edit-specific
@@ -43,16 +51,17 @@ never touch the network, and exit 0 on every path.**
 hooks/hooks.json             hook wiring (python3 "${CLAUDE_PLUGIN_ROOT}/bin/...")
 bin/pretool.py  bin/stop.py  thin stdin→stdout entrypoints (always exit 0)
 dovetail/
-  detect.py   triggers, is_trivial, is_watched_file, is_structural
-  change.py   parse a PreToolUse tool_input → (file_path, added_text, is_new_file)
-  cues.py     the cue payload (compact; < 2KB per injection)
-  hook.py     orchestration (author/finish decisions + real-transcript parsing)
-  state.py    per-context delivery state (full-once, compressed repeats)
-  log.py      local fire-rate telemetry → ~/.dovetail/fire-log.jsonl
-  report.py   summarize(records): per-surface fire rates + trigger counts
-  signal.py   weekly tuning signals computed from the fire log (pure)
+  detect.py       triggers, is_trivial, is_watched_file, is_structural
+  hollow_test.py  hollow-test shape detection (body-scoped, py + ts/js)
+  change.py       parse a PreToolUse tool_input → (file_path, added_text, is_new_file)
+  cues.py         the cue payload (compact; < 2KB per injection)
+  hook.py         orchestration (author/finish decisions + real-transcript parsing)
+  state.py        per-context delivery state (full-once, compressed repeats)
+  log.py          local fire-rate telemetry → ~/.dovetail/fire-log.jsonl
+  report.py       summarize(records): per-surface fire rates + trigger counts
+  signal.py       weekly tuning signals computed from the fire log (pure)
 bin/weekly_signal.py         prints tuning signals; point any scheduler at it
-tests/        115 tests — run: .venv/bin/python -m pytest -q
+tests/        165 tests — run: .venv/bin/python -m pytest -q
               (test dep lives in .venv; runtime stays stdlib-only.
                Setup once: python3 -m venv .venv && .venv/bin/pip install pytest)
 ```
