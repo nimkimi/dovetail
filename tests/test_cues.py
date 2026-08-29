@@ -24,6 +24,12 @@ def test_author_cue_includes_failure_path_secrets():
     assert "secrets" in build_author_cue(["failure-path"])
 
 
+def test_author_cue_includes_hollow_test_content():
+    cue = build_author_cue(["hollow-test"])
+    assert "production change" in cue
+    assert "mock" in cue
+
+
 def test_untriggered_cue_is_absent():
     assert "typosquat" not in build_author_cue([])
 
@@ -33,9 +39,10 @@ def test_triggers_are_deduped():
 
 
 def test_author_cue_stays_under_size_cap():
-    cue = build_author_cue(
-        ["blast-radius", "breaking-change", "failure-path", "dep-vet", "runtime-cost", "reuse"]
-    )
+    cue = build_author_cue([
+        "blast-radius", "breaking-change", "failure-path", "hollow-test",
+        "dep-vet", "runtime-cost", "reuse",
+    ])
     assert len(cue) <= CAP
 
 
